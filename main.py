@@ -14,15 +14,22 @@ import matplotlib.pyplot as plt
 
 # initialize
 servoRange = 60                # number of degrees servos will rotate over -- full scan: 180
-graphDimensions = 10             # number of points on each axis graph will have
+graphDimensions = 5             # number of points on each axis graph will have
 degreeChange = int(servoRange/graphDimensions)
     # graphDimensions = 180/degreeChange # maybe necessary???
 lastZpos = 85 - degreeChange     # initial tiltServo position -- full scan starts at 0
-lastXpos = 85 - degreeChange     # initial panServo position -- full scan starts at 0
+lastXpos = 60 - degreeChange     # initial panServo position -- full scan starts at 0
 
-phiArray = np.empty(graphDimensions**2)       # will store the angles the tilt servo is at
-thetaArray = np.empty(graphDimensions**2)     # will store the angles the pan servo is at
-rhoArray = np.empty(graphDimensions**2)       # will store the distance from the IR sensor in cm
+blankArray = [] # np.empty(graphDimensions**2)
+
+phiArray = blankArray       # will store the angles the tilt servo is at
+thetaArray = blankArray     # will store the angles the pan servo is at
+rhoArray = blankArray       # will store the distance from the IR sensor in cm
+
+xArray = blankArray
+yArray = blankArray
+zArray = blankArray
+
 phi = 0
 theta = 0
 rho = 0
@@ -77,8 +84,7 @@ def scan_row(zPos):
 
         # np.append(phiArray, phi)
         # np.append(thetaArray, theta)
-
-        np.append(rhoArray, rho)
+        # np.append(rhoArray, rho)
 
         print("arduino: " + dataFromArduino) 
     None
@@ -87,12 +93,12 @@ def scan_column(xPos):
     """
     description
     Args: 
-        zPos: current angle that the tiltServo is at
+        xPos: current angle that the panServo is at
     Returns:
     """
-    global lastZpos
+    global lastZpos, phi, theta, rho, phiArray, thetaArray, rhoArray
 
-    for column in range(graphDimensions+1):        
+    for column in range(graphDimensions):        
         zPos = lastZpos + degreeChange
         lastZpos = zPos
         print(f"zPos: {zPos}, xPos: {xPos}") # can be taken out later
@@ -117,39 +123,92 @@ def scan_column(xPos):
         
         # if len(dataList) > 0:
             # still occasionally fails, redundancy for above
-        zPos = dataList[0]
-        xPos = dataList[1]
+        zPos = int(dataList[0])
+        xPos = int(dataList[1])
         IRvoltage = float(dataList[2])
+       
+        phi = ((zPos*np.pi)/180)
+        theta = ((xPos*np.pi)/180)
+        rho = 13850*(IRvoltage**(-1.03)) # from sensor calibration, rho is in cm
+        print(f"phi: {phi}\ntheta:{theta}\nrho: {rho}")
 
-        rho = 13850*(IRvoltage**(-1.03))
-        print(f"rho: {rho}")
-
-
-        # phi = ((int(dataList[0])*np.pi)/180)
-        # theta = ((int(dataList[1])*np.pi)/180)
-        # rho = 13850*(int(dataList[2])**-1.03)
-
-        # np.append(phiArray, phi)
-        # np.append(thetaArray, theta)
-        np.append(rhoArray, rho)
+        phiArray = np.append(phiArray, phi)
+        thetaArray = np.append(thetaArray, theta)
+        rhoArray = np.append(rhoArray, rho)
 
         print("arduino: " + dataFromArduino) 
 
         print("--------------------------")
-    None
+
+def scan_columns_and_rows():
+    global lastXpos, lastZpos
+    
+    for row in range(graphDimensions):
+        xPos = lastXpos + degreeChange
+        lastXpos = xPos
+        scan_column(xPos)
+        lastZpos = lastZpos - ((graphDimensions)*degreeChange)
+    
+    print(f"**** scanned row *****")
+    
+
+def convert_to_cartesian(phiArray, thetaArray, rhoArray):
+    global xArray, yArray, zArray
+
+    print(f"phiArray\n{phiArray}\nthetaArray\n{thetaArray}\nrhoArray\n{rhoArray}")
+    
+    for i in range(graphDimensions):
+        phi = phiArray[i]
+        # if phi == 0:
+        #     phi = 2*np.pi
+        theta = thetaArray[i]
+        # if theta == 0:
+        #     theta = 2*np.pi
+        rho = rhoArray[i]
+
+        print(f"phi: {phi}, theta: {theta}, rho: {rho}")
+        print(f"cos theta: {np.cos(theta)}, sin theta: {np.sin(theta)}")
+
+
+        x = rho*np.sin(phi)*np.cos(theta)
+        # switching y and z for now
+        y = rho*np.sin(phi)*np.sin(theta)
+        z = rho*np.cos(phi)
+
+        xArray = np.append(xArray, x)
+        yArray = np.append(yArray, y)
+        zArray = np.append(zArray, z)
+
+    print(f"xArray\n{xArray}\nyArray\n{yArray}\nzArray\n{zArray}")
+
+    cartesianArrayList = [xArray, yArray, zArray]
+    return cartesianArrayList
 
 def graph_test():
-    fig = plt.figure(figsize = (graphDimensions, graphDimensions))
+    cartesianArrayList = convert_to_cartesian(phiArray, thetaArray, rhoArray)
+    xArray = cartesianArrayList[0]
+    yArray = cartesianArrayList[1]
+    zArray = cartesianArrayList[2]
+
+    print("-------")
+    print(f"xArray\n{xArray}\nyArray\n{yArray}\nzArray\n{zArray}")
+    
+    # plt.plot(xArray,yArray)
+    # plt.show()
+
+    # fig = plt.figure(figsize = (graphDimensions, graphDimensions))
+    
+    
     ax = plt.axes(projection='3d')
     ax.grid()
     
-    ax.plot3D(thetaArray, rhoArray, 0)
+    ax.scatter3D(xArray, yArray, zArray)
     ax.set_title('Test :D')
 
     # Set axes label
     ax.set_xlabel('x', labelpad=20)
     ax.set_ylabel('y', labelpad=20)
-    ax.set_zlabel('Z', labelpad=20)
+    ax.set_zlabel('z', labelpad=20)
 
     plt.show()
     
@@ -312,7 +371,8 @@ def main():
     print("hello world")
 
     # scan_row(0)
-    scan_column(0)
+    #scan_column(0)
+    scan_columns_and_rows()
     graph_test()
 
     # scan()
