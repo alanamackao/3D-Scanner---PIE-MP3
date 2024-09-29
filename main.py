@@ -13,8 +13,8 @@ import matplotlib.pyplot as plt
 # plt.style.use('seaborn-poster')
 
 # initialize
-servoRange = 60                # number of degrees servos will rotate over -- full scan: 180
-graphDimensions = 5             # number of points on each axis graph will have
+servoRange = 45                # number of degrees servos will rotate over -- full scan: 180
+graphDimensions = 9             # number of points on each axis graph will have
 degreeChange = int(servoRange/graphDimensions)
     # graphDimensions = 180/degreeChange # maybe necessary???
 lastZpos = 85 - degreeChange     # initial tiltServo position -- full scan starts at 0
@@ -127,8 +127,8 @@ def scan_column(xPos):
         xPos = int(dataList[1])
         IRvoltage = float(dataList[2])
        
-        phi = ((zPos*np.pi)/180)
-        theta = ((xPos*np.pi)/180)
+        phi = (((zPos-90)*np.pi)/180)
+        theta = (((xPos-90)*np.pi)/180)
         rho = 13850*(IRvoltage**(-1.03)) # from sensor calibration, rho is in cm
         print(f"phi: {phi}\ntheta:{theta}\nrho: {rho}")
 
@@ -211,6 +211,9 @@ def graph_test():
     ax.set_zlabel('z', labelpad=20)
 
     plt.show()
+
+def graph_column():
+    None
     
 
 def scan():
@@ -371,8 +374,8 @@ def main():
     print("hello world")
 
     # scan_row(0)
-    #scan_column(0)
-    scan_columns_and_rows()
+    scan_column(90)
+    # scan_columns_and_rows()
     graph_test()
 
     # scan()
